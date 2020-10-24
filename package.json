@@ -1,0 +1,23 @@
+{
+  "name": "google-calendar-busy-light",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adamgparsons/google-calendar-busy-light.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/adamgparsons/google-calendar-busy-light/issues"
+  },
+  "homepage": "https://github.com/adamgparsons/google-calendar-busy-light#readme",
+  "dependencies": {
+    "googleapis": "^39.2.0"
+  }
+}
