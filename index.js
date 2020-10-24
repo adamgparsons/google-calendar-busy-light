@@ -3,6 +3,85 @@ const readline = require("readline");
 const { google } = require("googleapis");
 const { finished } = require("stream");
 
+const strip = require("rpi-ws281x-native");
+
+const NUMBER_OF_LEDS = 32; // 32 leds in the Unicorn pHat
+
+strip.init(NUMBER_OF_LEDS);
+strip.setBrightness(80); // A value between 0 and 255
+
+// The RGB colours of the LEDs. for instance 0xff0000 is red, 0x0000ff is blue, etc.
+const busyLeds = [
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+  0x00ff00,
+];
+
+// Add a colour here if you what a different colour for when your calendar is currently available
+const freeLeds = [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+];
+
 // If modifying these scopes, delete token.json.
 const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 // The file token.json stores the user's access and refresh tokens, and is
@@ -82,16 +161,16 @@ function getAccessToken(oAuth2Client, callback) {
 async function App(auth) {
   let nextEvent;
   // run fetch
-  const fetchRefreshMinutes = 1;
-  const fetchInterval = fetchRefreshMinutes * 10 * 1000;
+  const fetchRefreshMinutes = 5;
+  const fetchInterval = fetchRefreshMinutes * 60 * 1000;
 
   setInterval(async () => {
     nextEvent = await fetchNextEvent(auth);
   }, fetchInterval);
 
   // check if currently busy
-  const checkBusyRefreshMinutes = 2;
-  const checkBusyInterval = checkBusyRefreshMinutes * 10 * 1000;
+  const checkBusyRefreshMinutes = 1;
+  const checkBusyInterval = checkBusyRefreshMinutes * 60 * 1000;
 
   setInterval(async () => {
     await checkIfBusy(nextEvent);
@@ -130,9 +209,14 @@ const checkIfBusy = (nextEvent) => {
     const endTime = nextEvent.end.dateTime;
 
     if (currentTime > startTime && currentTime < endTime) {
-      return true;
+      strip.render(busyLeds);
+      console.log("showing busy light");
     } else {
-      return false;
+      strip.render(freeLeds);
+      console.log("showing available light");
     }
+  } else {
+    strip.render(freeLeds);
+    console.log("showing available light");
   }
 };

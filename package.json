@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/adamgparsons/google-calendar-busy-light#readme",
   "dependencies": {
-    "googleapis": "^39.2.0"
+    "googleapis": "^39.2.0",
+    "rpi-ws281x-native": "^0.10.0"
   }
 }
