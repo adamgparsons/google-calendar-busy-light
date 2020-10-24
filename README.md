@@ -2,8 +2,6 @@
 
 A light that shines red when you're in the middle of a google calendar event (non-all day events). Aimed to help others in your household or workplace not disturb you when you're in a meeting.
 
-![Google calendar busy light](https://ibb.co/rxfmRGH)
-
 ## Prerequisites
 
 To use this project you will need:
