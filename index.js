@@ -8,79 +8,27 @@ const strip = require("rpi-ws281x-native");
 const NUMBER_OF_LEDS = 32; // 32 leds in the Unicorn pHat
 
 strip.init(NUMBER_OF_LEDS);
-strip.setBrightness(80); // A value between 0 and 255
+strip.setBrightness(5); // A value between 0 and 255
 
-// The RGB colours of the LEDs. for instance 0xff0000 is red, 0x0000ff is blue, etc.
-const busyLeds = [
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-  0x00ff00,
-];
+// colors
+const white = 0xffffff;
+const green = 0xff0000;
+const red = 0x00ff00;
+const blue = 0xff00ff;
 
-// Add a colour here if you what a different colour for when your calendar is currently available
-const freeLeds = [
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-];
+// light statuses
+const standbyLight = Array(NUMBER_OF_LEDS).fill(white);
+const availableLight = Array(NUMBER_OF_LEDS).fill(green);
+const busyLight = Array(NUMBER_OF_LEDS).fill(red);
+const meetingSoonLight = Array(NUMBER_OF_LEDS).fill(blue);
+
+// Working hours (24hr)  - outside of working hours it will show standByLight
+const workStart = 9; // 9am
+const workEnd = 18; // 6pm
+
+// initial render before next meeting is known
+strip.render(standbyLight);
+console.log("Loading...");
 
 // If modifying these scopes, delete token.json.
 const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -159,25 +107,26 @@ function getAccessToken(oAuth2Client, callback) {
  */
 
 async function App(auth) {
-  let nextEvent;
+  let nextEvents;
+
   // run fetch
   const fetchRefreshMinutes = 5;
   const fetchInterval = fetchRefreshMinutes * 60 * 1000;
-
+  nextEvents = await fetchNextEvents(auth);
   setInterval(async () => {
-    nextEvent = await fetchNextEvent(auth);
+    nextEvents = await fetchNextEvents(auth);
   }, fetchInterval);
 
-  // check if currently busy
-  const checkBusyRefreshMinutes = 1;
-  const checkBusyInterval = checkBusyRefreshMinutes * 60 * 1000;
+  // check current status
+  const checkStatusRefreshMinutes = 1;
+  const checkStatusInterval = checkStatusRefreshMinutes * 60 * 1000;
 
   setInterval(async () => {
-    await checkIfBusy(nextEvent);
-  }, checkBusyInterval);
+    await checkStatus(nextEvents);
+  }, checkStatusInterval);
 }
 
-async function fetchNextEvent(auth) {
+async function fetchNextEvents(auth) {
   let params = {
     calendarId: "primary",
     timeMin: new Date().toISOString(),
@@ -194,7 +143,11 @@ async function fetchNextEvent(auth) {
       const events = json.data.items;
       // find next non-all day event
       if (events.find((singleEvent) => singleEvent.start.dateTime)) {
-        return events.find((singleEvent) => singleEvent.start.dateTime);
+        const eventsList = events.filter(
+          (singleEvent) => singleEvent.start.dateTime
+        );
+        eventsList.length = 2;
+        return eventsList;
       }
     })
     .catch((err) => {
@@ -202,21 +155,69 @@ async function fetchNextEvent(auth) {
     });
 }
 
-const checkIfBusy = (nextEvent) => {
-  if (nextEvent) {
-    const currentTime = new Date().toISOString();
-    const startTime = nextEvent.start.dateTime;
-    const endTime = nextEvent.end.dateTime;
+const checkStatus = (nextEvents) => {
+  const currentHour = new Date().getHours();
 
-    if (currentTime > startTime && currentTime < endTime) {
-      strip.render(busyLeds);
-      console.log("showing busy light");
+  // Check if in work hours
+  if (currentHour >= workStart && currentHour <= workEnd) {
+    if (nextEvents) {
+      let [eventA, eventB] = nextEvents;
+
+      // check if a meeting if a is starting soon
+      if (meetingSoon(eventA, eventB)) {
+        strip.render(meetingSoonLight);
+        console.log("Meeting starting soon");
+      }
+
+      // check if meeting is currently on
+      else if (meetingOnNow(eventA, eventB)) {
+        strip.render(busyLight);
+        console.log("Meeting on now");
+      }
+
+      // if nothing on right now show available light
+      else {
+        strip.render(availableLight);
+        console.log("No meetings on right now");
+      }
     } else {
-      strip.render(freeLeds);
+      strip.render(availableLight);
       console.log("showing available light");
     }
-  } else {
-    strip.render(freeLeds);
-    console.log("showing available light");
+  }
+  // outside of work hours
+  else {
+    strip.render(standbyLight);
+    console.log("Outside of work hours");
   }
 };
+
+function meetingSoon(a, b) {
+  const meetingWarningMinutes = 5;
+  const currentTime = new Date();
+  const eventAStartTime = new Date(a.start.dateTime);
+  const minsTillA = Math.ceil((new Date(a.start.dateTime) - new Date()) / 60e3);
+  const minsTillB = Math.ceil((new Date(b.start.dateTime) - new Date()) / 60e3);
+  if (
+    (minsTillA > 0 && minsTillA < meetingWarningMinutes) ||
+    (minsTillB > 0 && minsTillB < meetingWarningMinutes)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function meetingOnNow(a, b) {
+  const currentTime = new Date();
+  const startTimeA = new Date(a.start.dateTime);
+  const endTimeA = new Date(a.end.dateTime);
+  const startTimeB = new Date(b.start.dateTime);
+  const endTimeB = new Date(b.end.dateTime);
+  if (
+    (currentTime > startTimeA && currentTime < endTimeA) ||
+    (currentTime > startTimeB && currentTime < endTimeB)
+  ) {
+    return true;
+  }
+  return false;
+}
